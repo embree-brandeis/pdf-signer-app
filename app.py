@@ -11,12 +11,13 @@ if uploaded_pdf is not None:
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         page = doc[0] 
         
-        # 1. Find the "Academic Report:" header as our stable anchor
+        # 1. Find the "Academic Report:" header
         academic_report_text = page.search_for("Academic Report:")
         
         # 2. Find the reference Conduct signature for size/width
         text_instances = page.search_for("Signature:")
         conduct_sig_rect = None
+        
         if len(text_instances) >= 2:
             for img in page.get_image_info():
                 img_rect = fitz.Rect(img["bbox"])
@@ -28,14 +29,10 @@ if uploaded_pdf is not None:
             st.error("Could not find required sections for alignment.")
         else:
             # 3. Pin to the bottom of the Academic Report table
-            # We look for where the Academic table ends (usually quite high up)
-            # and place the signature a set distance below it.
             anchor = academic_report_text[0]
             
             img_x = conduct_sig_rect.x0
-            # Nudge this 'y' value to get the exact vertical height you need
-            # Lower the number to move it UP, raise to move it DOWN
-            img_y = anchor.y0 + 350 
+            img_y = anchor.y0 + 350 # Adjust this number to nudge placement
             
             target_area = fitz.Rect(img_x, img_y, img_x + conduct_sig_rect.width, img_y + conduct_sig_rect.height)
             
@@ -45,6 +42,10 @@ if uploaded_pdf is not None:
             doc.close()
             
             original_name = uploaded_pdf.name.rsplit('.', 1)[0]
-            st.download_button("Download Signed PDF", output_bytes, file_name=f"{original_name}_SIGNED.pdf")
-            else:
-                st.error("Could not detect the dimensions of the bottom signature for alignment.")
+            st.success("Signature applied!")
+            st.download_button(
+                label="Download Signed PDF", 
+                data=output_bytes, 
+                file_name=f"{original_name}_SIGNED.pdf",
+                mime="application/pdf"
+            )
