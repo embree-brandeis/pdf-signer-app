@@ -11,33 +11,31 @@ if uploaded_pdf is not None:
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         page = doc[0] 
         
-        # 1. Target the FIRST "Signature:" label
-        text_instances = page.search_for("Signature:")
+        # 1. Locate the specific name to anchor to
+        lori_text = page.search_for("Lori")
         
-        if not text_instances:
-            st.error("Could not find the signature line.")
+        if not lori_text:
+            st.error("Could not find the signature name area.")
         else:
-            academic_sig_label = text_instances[0]
+            # 2. Pin above the name
+            target = lori_text[0]
             
-            # 2. Refined Placement
-            # We set a fixed size, but we move the Y-coordinate down 
-            # by 30 pixels to clear the "Signature:" text and 
-            # align it above the printed name.
-            img_width = 160
-            img_height = 50
-            img_x = academic_sig_label.x0 + 80
-            img_y = academic_sig_label.y0 + 30 
+            # Place signature 50 pixels to the left of the name, 
+            # and 40 pixels ABOVE the name to leave room for the printed title.
+            img_x = target.x0 - 50 
+            img_y = target.y0 - 40 
             
-            target_area = fitz.Rect(img_x, img_y, img_x + img_width, img_y + img_height)
+            target_area = fitz.Rect(img_x, img_y, img_x + 160, img_y + 40)
             
+            # This 'whiteout' trick prevents the signature from overlapping text
+            page.draw_rect(target_area, color=(1, 1, 1), fill=(1, 1, 1))
             page.insert_image(target_area, filename="unnamed.jpg")
             
             output_bytes = doc.write()
             doc.close()
             
-            # 3. Dynamic naming
             original_name = uploaded_pdf.name.rsplit('.', 1)[0]
-            st.success("Signature placed with breathing room!")
+            st.success("Signature placed above the name!")
             st.download_button(
                 label=f"Download {original_name}_SIGNED.pdf", 
                 data=output_bytes, 
