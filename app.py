@@ -11,30 +11,38 @@ if uploaded_pdf is not None:
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         page = doc[0] 
         
-        # 1. Search for all instances of "Signature:"
         text_instances = page.search_for("Signature:")
         
         if len(text_instances) < 2:
             st.error("Could not find both signature lines.")
         else:
-            # We target the first "Signature:" label (Academic)
-            label_rect = text_instances[0]
+            # academic_sig is the target, conduct_sig is the reference for alignment/size
+            academic_sig_label = text_instances[0]
+            conduct_sig_label = text_instances[1]
             
-            # 2. Pin the image relative to the label
-            # This places the image directly to the right of the label, 
-            # and aligns the top of the image with the top of the label text.
-            img_x = label_rect.x1 + 10  # 10 pixels to the right of the word "Signature:"
-            img_y = label_rect.y0 - 10  # Start slightly above the label line
+            # 1. Identify the area where the Conduct signature is (as a reference)
+            # We look for where the signature *actually* is (by checking for images)
+            conduct_sig_rect = None
+            for img in page.get_image_info():
+                img_rect = fitz.Rect(img["bbox"])
+                # If the image is near the bottom signature line, it's our target
+                if img_rect.y0 > conduct_sig_label.y0 - 80:
+                    conduct_sig_rect = img_rect
+                    break
             
-            # Keep the image size constant (e.g., 120 wide by 40 tall)
-            target_area = fitz.Rect(img_x, img_y, img_x + 120, img_y + 40)
-            
-            # 3. Apply the image
-            page.insert_image(target_area, filename="unnamed.jpg")
-            
-            # 4. Finalize
-            output_bytes = doc.write()
-            doc.close()
-            
-            st.success("Signature pinned successfully!")
-            st.download_button("Download Signed PDF", output_bytes, file_name="final_signed_doc.pdf")
+            if conduct_sig_rect:
+                # 2. Use the Conduct signature's size and vertical alignment
+                # Align X-start with the bottom signature, Y-start with the top label
+                img_x = conduct_sig_rect.x0
+                img_y = academic_sig_label.y0 - 30 
+                
+                target_area = fitz.Rect(img_x, img_y, img_x + conduct_sig_rect.width, img_y + conduct_sig_rect.height)
+                
+                page.insert_image(target_area, filename="unnamed.jpg")
+                
+                output_bytes = doc.write()
+                doc.close()
+                st.success("Signature aligned and scaled to match Conduct signature!")
+                st.download_button("Download Signed PDF", output_bytes, file_name="final_signed_doc.pdf")
+            else:
+                st.error("Could not detect the dimensions of the bottom signature to use as a reference.")
