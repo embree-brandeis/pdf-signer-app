@@ -11,29 +11,33 @@ if uploaded_pdf is not None:
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         page = doc[0] 
         
-        # 1. Target the "Academic Services" footer at the bottom of the page
-        footer_text = page.search_for("Academic Services")
+        # 1. Target the FIRST "Signature:" label
+        text_instances = page.search_for("Signature:")
         
-        if not footer_text:
-            st.error("Could not find the page structure. Please ensure this is a standard Brandeis Dean's Certification.")
+        if not text_instances:
+            st.error("Could not find the signature line.")
         else:
-            # 2. Pin the signature a fixed distance ABOVE the footer (approx 200 units)
-            # This lands the signature in the middle of the Academic section
-            anchor = footer_text[0]
-            img_x = 100  # Fixed horizontal position from the left margin
-            img_y = anchor.y0 - 200 # Places signature 200 units above the footer
+            academic_sig_label = text_instances[0]
             
-            target_area = fitz.Rect(img_x, img_y, img_x + 160, img_y + 50)
+            # 2. Refined Placement
+            # We set a fixed size, but we move the Y-coordinate down 
+            # by 30 pixels to clear the "Signature:" text and 
+            # align it above the printed name.
+            img_width = 160
+            img_height = 50
+            img_x = academic_sig_label.x0 + 80
+            img_y = academic_sig_label.y0 + 30 
             
-            # Draw white box to clear any underlying text
-            page.draw_rect(target_area, color=(1, 1, 1), fill=(1, 1, 1))
+            target_area = fitz.Rect(img_x, img_y, img_x + img_width, img_y + img_height)
+            
             page.insert_image(target_area, filename="unnamed.jpg")
             
             output_bytes = doc.write()
             doc.close()
             
+            # 3. Dynamic naming
             original_name = uploaded_pdf.name.rsplit('.', 1)[0]
-            st.success("Signature placed using footer anchor!")
+            st.success("Signature placed with breathing room!")
             st.download_button(
                 label=f"Download {original_name}_SIGNED.pdf", 
                 data=output_bytes, 
