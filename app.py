@@ -11,26 +11,24 @@ if uploaded_pdf is not None:
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         page = doc[0] 
         
-        # 1. Get all "Signature:" labels
-        all_labels = page.search_for("Signature:")
+        # 1. Search for "Signature" (without the colon, to ensure we catch it)
+        text_instances = page.search_for("Signature")
         
-        # 2. Filter for the one in the top half of the page (Academic section)
-        # Page height is usually around 792 points. We look for labels where y < 400.
-        academic_label = None
-        for label in all_labels:
-            if label.y0 < 400:
-                academic_label = label
-                break
-        
-        if not academic_label:
-            st.error("Could not find the Academic signature line.")
+        if not text_instances:
+            st.error("Could not find the signature line.")
         else:
-            # 3. Define signature size and placement
-            # y0 + 10 places it just below the "Signature:" text
-            img_width = 150
+            # We specifically target the first "Signature" label
+            target_label = text_instances[0]
+            
+            # 2. Hard-coded placement:
+            # We use a fixed width/height for professional consistency
+            img_width = 160
             img_height = 50
-            img_x = academic_label.x0
-            img_y = academic_label.y0 + 10 
+            
+            # Place it slightly to the right of the label and vertically offset
+            # Adjust '40' if you need it further down
+            img_x = target_label.x0 + 80
+            img_y = target_label.y0 - 15 
             
             target_area = fitz.Rect(img_x, img_y, img_x + img_width, img_y + img_height)
             
@@ -39,10 +37,11 @@ if uploaded_pdf is not None:
             output_bytes = doc.write()
             doc.close()
             
+            # 3. Dynamic naming
             original_name = uploaded_pdf.name.rsplit('.', 1)[0]
-            st.success("Signature correctly placed in the Academic section!")
+            st.success("Signature placed successfully!")
             st.download_button(
-                label="Download Signed PDF", 
+                label=f"Download {original_name}_SIGNED.pdf", 
                 data=output_bytes, 
                 file_name=f"{original_name}_SIGNED.pdf",
                 mime="application/pdf"
